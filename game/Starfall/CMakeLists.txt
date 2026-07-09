@@ -44,6 +44,13 @@ set(CMAKE_MODULE_PATH
 include(AXGameEngineOptions)
 include(AXGameEngineSetup)
 
+file(GLOB_RECURSE GAME_HEADER CONFIGURE_DEPENDS
+    Source/*.h Source/*.hpp
+  )
+  file(GLOB_RECURSE GAME_SOURCE CONFIGURE_DEPENDS
+    Source/*.cpp Source/*.c
+  )
+
 # The common cross-platforms source files and header files
 file(GLOB_RECURSE GAME_HEADER
   Source/*.h Source/*.hpp

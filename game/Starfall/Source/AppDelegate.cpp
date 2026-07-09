@@ -25,6 +25,7 @@
 
 #include "AppDelegate.h"
 #include "MainScene.h"
+#include "Scenes/GameScene.h"
 
 #define USE_AUDIO_ENGINE 1
 
@@ -82,13 +83,16 @@ bool AppDelegate::applicationDidFinishLaunching()
     renderView->setDesignResolutionSize(designResolutionSize.width, designResolutionSize.height,
                                     ResolutionPolicy::SHOW_ALL);
 
-#if !_AX_TESTS
-    // create a scene. it's an autorelease object
-    auto scene = utils::createInstance<MainScene>();
+//#if !_AX_TESTS
+//    // create a scene. it's an autorelease object
+//    auto scene = utils::createInstance<MainScene>();
+//
+//    // run
+//    director->runWithScene(scene);
+//#endif
 
-    // run
+    auto scene = GameScene::create();
     director->runWithScene(scene);
-#endif
 
     return true;
 }
