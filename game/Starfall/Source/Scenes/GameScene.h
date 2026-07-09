@@ -1,5 +1,6 @@
 #pragma once
 #include "axmol.h"
+#include "Entities/Player.h"
 
 class GameScene :public ax::Scene
 {
@@ -27,6 +28,8 @@ public:
         /// observing pointer - scene owns it via addChild
         /// </summary>
         ax :: Label* _dtLabel = nullptr;
+
+        Player* _player = nullptr;
 
         double _elapsed = 0.0;
 };

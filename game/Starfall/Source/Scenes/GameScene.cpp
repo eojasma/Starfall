@@ -33,6 +33,16 @@ bool GameScene::init()
 
     this->addChild(_dtLabel);
 
+    _player = Player::create();
+    _player->setPosition(visibleSize / 2.0f);
+    this->addChild(_player);
+
+    auto keys = EventListenerKeyboard::create();
+    keys->onKeyPressed  = [this](EventKeyboard::KeyCode code, Event*) { _player->onKeyDown(code); };
+    keys->onKeyReleased = [this](EventKeyboard::KeyCode code, Event*) { _player->onKeyUp(code); };
+
+    _eventDispatcher->addEventListenerWithSceneGraphPriority(keys, this);
+
     this->scheduleUpdate();
 
     return true;
