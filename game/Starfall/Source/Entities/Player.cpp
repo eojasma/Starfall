@@ -1,6 +1,28 @@
 #include "Player.h"
 USING_NS_AX;
 
+namespace
+{
+/// <summary>
+/// px/sec
+/// </summary>
+constexpr float kMaxSpeed = 340.0f;
+
+/// <summary>
+/// px/sec^2 
+/// </summary>
+constexpr float kAccel    = 2400.0f;
+/// <summary>
+/// px/sec^2 
+/// </summary>
+constexpr float kFriction = 1800.0f;
+
+/// <summary>
+/// px/sec
+/// </summary>
+constexpr float kPlayerFireInterval = 0.45f;
+}
+
 Player* Player::create()
 {
     Player* p = new (std::nothrow) Player();
@@ -31,6 +53,57 @@ bool Player::init()
 
 void Player::update(float dt)
 {
+    if (_state != ShipState::Alive)
+    {
+        return;
+    }
+
+    if (0 < _mainWeaponCoolDown)
+    {
+        _mainWeaponCoolDown -= dt;
+    }
+
+    const Vec2 input = readInputDirection();
+
+    if (!input.isZero())
+    {
+        _velocity = input * kAccel * dt;  // velocity = speed *direction, veloctiy * deltatime
+    }
+    else
+    {
+        const float speed = _velocity.length();
+        if (speed > 0)
+        {
+            const float drop = kFriction * dt;
+            _velocity        = _velocity * std::max(0.0f, speed - drop);
+        }
+    }
+
+    if (_velocity.length() > kMaxSpeed)
+    {
+        _velocity.normalize();
+        _velocity = _velocity * kMaxSpeed;
+    }
+
+    Vec2 pos = getPosition() + _velocity * dt;
+
+    setPosition(pos);
+}
+
+
+bool Player::canFire()
+{
+    return _mainWeaponCoolDown <= 0;
+}
+
+void Player::firedMainWeapon()
+{
+    _mainWeaponCoolDown = kPlayerFireInterval;
+}
+
+ax::Vec2 Player::readInputDirection() const
+{
+
     using KC = EventKeyboard::KeyCode;
 
     Vec2 dir{0.0f, 0.0f};
@@ -54,22 +127,19 @@ void Player::update(float dt)
         dir.x += 1.0f;
     }
 
-    if (!dir.isZero())
-    {
-        auto* director = Director::getInstance();
-        
-        dir.normalize();
+    dir.normalize();
 
-        Vec2 pos = getPosition() + dir*_speed * dt; //velocity = speed *direction, veloctiy * deltatime
+    return dir;
+}
 
-        const auto vs = director->getVisibleSize();
-        const auto half = _sprite->getContentSize() / 2.0f;
+void Player::clampToScreen(ax::Vec2& pos)
+{
+    auto* director  = Director::getInstance();
+    const auto vs   = director->getVisibleSize();
+    const auto half = _sprite->getContentSize() / 2.0f;
 
-        pos.x = clampf(pos.x, half.width, vs.width - half.width);
-        pos.y = clampf(pos.y, half.height, vs.height - half.height);
-
-        setPosition(pos);
-    }
+    pos.x = clampf(pos.x, half.width, vs.width - half.width); //this seems wrong,
+    pos.y = clampf(pos.y, half.height, vs.height - half.height);
 }
 
 void Player::onKeyDown(ax::EventKeyboard::KeyCode code)
