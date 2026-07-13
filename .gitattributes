@@ -1,0 +1,30 @@
+# Normalize line endings: LF in the repo, native on checkout.
+* text=auto
+
+# Source — force LF so the CRLF warnings stop.
+*.h    text eol=lf
+*.hpp  text eol=lf
+*.cpp  text eol=lf
+*.c    text eol=lf
+*.cc   text eol=lf
+*.cmake text eol=lf
+CMakeLists.txt text eol=lf
+*.md   text eol=lf
+
+# Windows-only files keep CRLF.
+*.sln  text eol=crlf
+*.vcxproj text eol=crlf
+*.vcxproj.filters text eol=crlf
+*.bat  text eol=crlf
+
+# Binaries — never touched.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.wav  binary
+*.mp3  binary
+*.ogg  binary
+*.ttf  binary
+*.fnt  binary
+*.plist binary
