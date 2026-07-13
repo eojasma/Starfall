@@ -10,9 +10,11 @@ void SpatialGrid::Clear()
 
 void SpatialGrid::Insert(Enemy* enemy)
 {
-    const ax::Vec2 minimum = {enemy->pos.x - enemy->radius, enemy->pos.y - enemy->radius};
+    const ax::Vec2 minimum = {enemy->transform->pos.x - enemy->transform->radius,
+                              enemy->transform->pos.y - enemy->transform->radius};
 
-    const ax::Vec2 maximum = {enemy->pos.x + enemy->radius, enemy->pos.y + enemy->radius};
+    const ax::Vec2 maximum = {enemy->transform->pos.x + enemy->transform->radius,
+                              enemy->transform->pos.y + enemy->transform->radius};
 
     const Cell minCell = ToCell(minimum);
     const Cell maxCell = ToCell(maximum);

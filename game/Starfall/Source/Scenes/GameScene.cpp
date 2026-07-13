@@ -40,8 +40,11 @@ bool GameScene::init()
 
     _gameplayMgr = new GameplayManager();
 
-    _player = Player::create();
-    this->addChild(_player);
+    _player = new Player();
+    
+    _player->init();
+
+    this->addChild(_player->getRenderNode());
 
     _gameplayMgr->setPlayer(_player);
 

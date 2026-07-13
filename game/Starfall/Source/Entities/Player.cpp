@@ -1,4 +1,6 @@
 #include "Player.h"
+#include "Sprites/PlayerSprite.h"
+
 USING_NS_AX;
 
 namespace
@@ -22,43 +24,96 @@ constexpr float kFriction = 1800.0f;
 /// </summary>
 constexpr float kPlayerFireInterval = 0.45f;
 constexpr float kPlayerRadius       = 32.0f;
+
+constexpr int kMaxPlayerHealth = 10.0f;
+
+constexpr float kIFrameWindow = 0.50f;
 }
 
-Player* Player::create()
-{
-    Player* p = new (std::nothrow) Player();
-    if (p && p->init())
-    {
-        p->autorelease();
-        return p;
-    }
+//Player* Player::create()
+//{
+//    Player* p = new (std::nothrow) Player();
+//    if (p && p->init())
+//    {
+//        return p;
+//    }
+//
+//    AX_SAFE_DELETE(p);
+//    return nullptr;
+//}
 
-    AX_SAFE_DELETE(p);
-    return nullptr;
+Player::Player()
+{
+    reset();
+}
+
+void Player::reset() 
+{
+    Entity::reset();
+    transform = TransformComp
+    {
+        .radius = kPlayerRadius
+
+    };
+
+    health    = HealthComp
+    {
+        .current = kMaxPlayerHealth,
+        .max     = kMaxPlayerHealth,
+    };
+    weapon = WeaponComp();
+    render = RenderComp();
+    // death  = DeathComp();
+
+    _state = ShipState::Alive;
+    _vulnState = VulnState::Open;
+    _vulnStateCoolDown = 0.0f;
 }
 
 bool Player::init()
 {
-    if (!Node::init())
+    /*if (!Node::init())
     {
         return false;
     }
 
-    _radius = kPlayerRadius;
-
+    
     _sprite = Sprite::create("Sprites/ship.png");
     AXASSERT(_sprite, "ship.png missing from Content/");
 
     this->addChild(_sprite);
-    this->scheduleUpdate();
+    this->scheduleUpdate();*/
+
+    render->node =  PlayerSprite::create();
+    render->node->init();
+
+
     return true;
 }
 
+ax::Node* Player::getRenderNode()
+{
+    return render->node;
+}
 
 const float Player::getRadius() const
 {
-    return _radius;
+    return transform->radius;
 }
+
+const ax::Vec2 Player::getPosition() const
+{
+    return transform->pos;
+}
+
+void Player::setPosition(const ax::Vec2 pos)
+{
+    transform->pos.x = pos.x;
+    transform->pos.y = pos.y;
+
+    render->node->setPosition(pos);
+}
+    
 
 void Player::update(float dt)
 {
@@ -72,36 +127,47 @@ void Player::update(float dt)
         _mainWeaponCoolDown -= dt;
     }
 
+    if (0 < _vulnStateCoolDown)
+    {
+        _vulnStateCoolDown -= dt;
+
+        if (0 >= _vulnStateCoolDown)
+        {
+            _vulnState = VulnState::Open;
+        }
+    }
+
+
     const Vec2 input = readInputDirection();
 
     if (!input.isZero())
     {
-        _velocity += input * kAccel * dt;  // velocity = speed *direction, veloctiy * deltatime
+        transform->vel += input * kAccel * dt;  // velocity = speed *direction, veloctiy * deltatime
     }
     else
     {
-        const float speed = _velocity.length();
+        const float speed = transform->vel.length();
         if (speed > 0)
         {
             const float drop = kFriction * dt;
-            _velocity        = _velocity * (std::max(0.0f, speed - drop) / speed);
+            transform->vel        = transform->vel * (std::max(0.0f, speed - drop) / speed);
         }
     }
 
-    if (_velocity.length() > kMaxSpeed)
+    if (transform->vel.length() > kMaxSpeed)
     {
-        _velocity.normalize();
-        _velocity = _velocity * kMaxSpeed;
+        transform->vel.normalize();
+        transform->vel = transform->vel * kMaxSpeed;
     }
 
-    Vec2 pos = getPosition() + _velocity * dt;
+    Vec2 pos = getPosition() + transform->vel * dt;
 
     clampToScreen(pos);
     setPosition(pos);
 }
 
 
-bool Player::canFire()
+bool Player::canFire() const
 {
     return _mainWeaponCoolDown <= 0;
 }
@@ -114,6 +180,31 @@ void Player::firedMainWeapon()
 void Player::PlayerDied()
 {
     _state = ShipState::Dead;
+}
+
+
+bool Player::canBeDamaged() const
+{
+    return _vulnState == VulnState::Open;
+}
+
+void Player::applyDamage(Player& entity, int damage, GameplayManager& game)
+{
+    //"iframe" invulnerable for a short time after damage so that the players health
+    // doesnt drain on contact in a couple frames
+    if (canBeDamaged())
+    {
+        health->applyDamage(entity, damage, game);
+
+        _vulnState         = VulnState::Invuln;
+        _vulnStateCoolDown = kIFrameWindow;
+    }
+}
+
+[[nodiscard]]
+bool Player::isDead() const
+{
+    return health->isDead();
 }
 
 ax::Vec2 Player::readInputDirection() const
@@ -151,7 +242,7 @@ void Player::clampToScreen(ax::Vec2& pos)
 {
     auto* director  = Director::getInstance();
     const auto vs   = director->getVisibleSize();
-    const auto half = _sprite->getContentSize() / 2.0f;
+    const auto half = render->node->getContentSize() / 2.0f;
 
     pos.x = clampf(pos.x, half.width, vs.width - half.width); //this seems wrong,
     pos.y = clampf(pos.y, half.height, vs.height - half.height);

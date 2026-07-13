@@ -54,7 +54,7 @@ public:
     /// check if we can spawn an enemy now
     /// </summary>
     /// <returns></returns>
-    bool isTimeToSpawnEnemy();
+    bool isTimeToSpawnEnemy() const;
 
     /// <summary>
     /// called when enemy has spawned, starts the cooldown
@@ -65,6 +65,10 @@ public:
 
     void onKeyDown(ax::EventKeyboard::KeyCode code);
     void onKeyUp(ax::EventKeyboard::KeyCode code);
+
+
+    void EnemyDeath(Enemy& e);
+
 
 private:
     ax::Scene* _scene   = nullptr;
@@ -114,7 +118,7 @@ private:
      /// <param name="pos">Pos: position to spawn at</param>
      /// <returns></returns>
      template <typename T>
-        requires std::derived_from<T, VisualEntity>
+        requires std::derived_from<T, Entity>
     T* spawnSprite(Pool<T>& pool, const ax::Vec2 pos);
 
     

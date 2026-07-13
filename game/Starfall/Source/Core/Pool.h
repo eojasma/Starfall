@@ -1,7 +1,11 @@
 #pragma once
 #include <cstddef>
+#include <concepts>
 
 template <class T>
+    requires requires(T t) {
+        { t.active } -> std::convertible_to<bool>;
+    } //requiring an active flag so that the itteration over alive entities only, the entities liveness is handled by it and the game logic
 class Pool
 {
 public:
@@ -46,7 +50,7 @@ private:
     /// <summary>
     /// parallel liveness flags
     /// </summary>
-    std::vector<bool> _active;
+    //std::vector<bool> _active;
 
     std::size_t _live = 0;
 };
@@ -54,7 +58,10 @@ private:
 
 
 template <class T>
-Pool<T>::Pool(std::size_t capacity) : _slots(capacity), _active(capacity, false)
+    requires requires(T t) {
+        { t.active } -> std::convertible_to<bool>;
+    }
+Pool<T>::Pool(std::size_t capacity) : _slots(capacity) //_active(capacity, false)
 {
     _free.reserve(capacity);
 
@@ -62,7 +69,10 @@ Pool<T>::Pool(std::size_t capacity) : _slots(capacity), _active(capacity, false)
         _free.push_back(i);
 }
 
-template<class T>
+template <class T>
+    requires requires(T t) {
+        { t.active } -> std::convertible_to<bool>;
+    }
 T* Pool<T>::acquire()
 {
     if (_free.empty()) //free-list empty == pool exhausted; caller must handle null.
@@ -73,13 +83,17 @@ T* Pool<T>::acquire()
     std::size_t i = _free.back();
     _free.pop_back();
 
-    _active[i]    = true;
+    _slots[i].active = true;
+    //_active[i]    = true;
     ++_live;
 
     return &_slots[i];
 }
 
 template <class T>
+    requires requires(T t) {
+        { t.active } -> std::convertible_to<bool>;
+    }
 void Pool<T>::release(T* p)
 {
     if (!p)
@@ -92,19 +106,24 @@ void Pool<T>::release(T* p)
     std::size_t i = static_cast<std::size_t>(p - _slots.data());
 
     AXASSERT(i < _slots.size(), "release: pointer not from this pool");
-    if (!_active[i])
+    //if (!_active[i])
+    if (!_slots[i].active) 
         return;  // guard: already free — double-release is a no-op
 
-    _active[i] = false;
+    //_active[i] = false;
+    _slots[i].active  = false;
     _free.push_back(i);  // back onto the free stack (O(1))
     --_live;
 }
 
 template <class T>
+    requires requires(T t) {
+        { t.active } -> std::convertible_to<bool>;
+    }
 template <class Fn>
 void Pool<T>::forEachActive(Fn&& fn)
 {
     for (std::size_t i = 0; i < _slots.size(); ++i)
-        if (_active[i])
+        if (_slots[i].active)//(_active[i])
             fn(_slots[i], i);
 }

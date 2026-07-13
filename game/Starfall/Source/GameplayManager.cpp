@@ -2,7 +2,9 @@
 #include <random>
 #include <algorithm>
 #include <cmath>
-#include "Entities/BulletSprite.h"
+#include "Entities/Sprites/BulletSprite.h"
+#include "Behaviors/Chaser.h"
+
 
 USING_NS_AX;
 
@@ -71,6 +73,8 @@ void GameplayManager::update(const float dt)
         _enemyGrid.Insert(&b);
     });
 
+    _player->update(dt);
+
     constexpr float kPad = 64.f;  // ~one bullet-sprite beyond the edge
     const ax::Rect  bounds(origin.x - kPad, origin.y - kPad, vis.width + kPad * 2, vis.height + kPad * 2);
 
@@ -90,7 +94,7 @@ void GameplayManager::update(const float dt)
         // an active bullet always has a live node (fire() guarantees it),
         // so no null-check here. If that ever breaks, this is where it crashes.
         toRemove->pendingRemoval = false;
-        toRemove->node->setVisible(false);
+        toRemove->render->node->setVisible(false);
         _bullets.release(toRemove);  // safe: release only flips a flag + pushes an index
     }
 
@@ -99,7 +103,7 @@ void GameplayManager::update(const float dt)
         // an active enemy always has a live node (spawnEnemy() guarantees it),
         // so no null-check here. If that ever breaks, this is where it crashes.
         toRemove->pendingRemoval = false;
-        toRemove->node->setVisible(false);
+        toRemove->render->node->setVisible(false);
         _enemies.release(toRemove);  // safe: release only flips a flag + pushes an index
     }
 
@@ -109,23 +113,25 @@ void GameplayManager::update(const float dt)
 }
 
 
-template <typename T> requires std::derived_from<T, VisualEntity>
+template <typename T> requires std::derived_from<T, Entity>
 T* GameplayManager::spawnSprite(Pool<T>& pool, const ax::Vec2 pos) //very important the pool is passed by reference or a bug where the pool is copied and acted on instead
 {
     T* entity = pool.acquire();
 
     if (entity)  // acquire() returns null at cap — dont spawn a mob, don't grow the pool.
     {
-        if (!entity->node)  // first use of this slot; reused slots keep their sprite.
+        entity->reset();
+
+        if (!entity->render->node)  // first use of this slot; reused slots keep their sprite.
         {
-            entity->node = T::createSprite();  // per-type factory
-            _scene->addChild(entity->node);
+            entity->render->node = T::createSprite();  // per-type factory
+            _scene->addChild(entity->render->node);
         }
 
-        entity->node->setVisible(true);
+        entity->render->node->setVisible(true);
         
-        entity->pos.x = pos.x;
-        entity->pos.y = pos.y;
+        entity->transform->pos.x = pos.x;
+        entity->transform->pos.y = pos.y;
         
     }
 
@@ -212,13 +218,13 @@ bool Intersects(Vec2 posA, Vec2 posB, float radiusA, float radiusB)//const Circl
 
 void GameplayManager::bulletUpdate(Bullet& bullet, const ax::Rect& bounds, const float dt)
 {
-    Vec2 start = bullet.pos;
-    bullet.pos += bullet.vel * dt;
+    Vec2 start = bullet.transform->pos;
+    bullet.transform->pos += bullet.transform->vel * dt;
 
-    Vec2 end = bullet.pos; //position + bullet.velocity* deltaTime;
+    Vec2 end = bullet.transform->pos;  // position + bullet.velocity* deltaTime;
 
-    bullet.node->setPosition(bullet.pos);
-    if (!bounds.containsPoint(bullet.pos))
+    bullet.render->node->setPosition(bullet.transform->pos);
+    if (!bounds.containsPoint(bullet.transform->pos))
     {
         bullet.pendingRemoval = true;
         _bulletsToRemove.push_back(&bullet);
@@ -234,14 +240,21 @@ void GameplayManager::bulletUpdate(Bullet& bullet, const ax::Rect& bounds, const
             continue;
         }
 
-        if (SegmentIntersectsCircle(start, end, enemy->pos, enemy->radius + bullet.radius)) //include the bullet radius to act as a capsule
+        if (SegmentIntersectsCircle(start, end, enemy->transform->pos,
+                enemy->transform->radius + bullet.transform->radius))  // include the bullet radius to act as a capsule
         {
             // Bullet hit enemy.
             //TODO: start enemy death animation
             bullet.pendingRemoval = true;
-            enemy->pendingRemoval = true;
+            
             _bulletsToRemove.push_back(&bullet);
-            _enemiesToRemove.push_back(enemy);
+
+            enemy->health->applyDamage(*enemy, 1, *this);
+
+            if (enemy->health->isDead())
+            {
+                EnemyDeath(*enemy);
+            }
             return;
         }
     }
@@ -255,8 +268,8 @@ void GameplayManager::firePlayerMainWeapon()
         
         if (auto* b = spawnSprite(_bullets, pos))
         {
-            b->vel = Vec2(0, kBulletVelocity);
-            b->radius = kBulletRadius;
+            b->transform->vel = Vec2(0, kBulletVelocity);
+            b->transform->radius = kBulletRadius;
             _player->firedMainWeapon();
         }
     }
@@ -264,7 +277,7 @@ void GameplayManager::firePlayerMainWeapon()
 
 
 
-bool GameplayManager::isTimeToSpawnEnemy()
+bool GameplayManager::isTimeToSpawnEnemy() const
 {
     return 0 > enemySpawnCoolDown;
 }
@@ -312,7 +325,7 @@ void GameplayManager::spawnEnemy(const ax::Rect& bounds)
     
     if (auto* e = spawnSprite(_enemies, pos))
     {
-        e->radius = kEnemyRadius; //this should come from data based on enemy type.
+        e->transform->radius = kEnemyRadius;  // this should come from data based on enemy type.
         enemySpawned();
     }
 
@@ -326,29 +339,31 @@ void GameplayManager::enemyUpdate(Enemy& enemy, const ax::Rect& bounds,  const f
     }
 
     //TODO: enemy 'ai' loop, for now pure seek
-    ax::Vec2 dir = (_player->getPosition() - enemy.pos).getNormalized();
-    enemy.vel = dir * kEnemySpeed;
-    enemy.pos += enemy.vel * dt;
-    
-    enemy.node->setPosition(enemy.pos);
-   /* if (!bounds.containsPoint(enemy.pos))
-    {
-        enemy.pendingRemoval = true;
-        _enemiesToRemove.push_back(&enemy);
-        return;
-    }*/
+    Chaser::Update(&enemy, _player, kEnemySpeed, dt);
 
-    if (Intersects(enemy.pos, _player->getPosition(), enemy.radius, _player->getRadius()))
+    enemy.render->node->setPosition(enemy.transform->pos);
+
+    if (Intersects(enemy.transform->pos, _player->getPosition(), enemy.transform->radius, _player->getRadius()))
     {
         //player hit
-        //TODO handle player collision
-        _player->PlayerDied();
+        _player->applyDamage(*_player, 1, *this);
+
+        if (_player->isDead())
+        {
+            _player->PlayerDied();
+        }
+
+        
 
         return;
     }
 }
 
-
+void GameplayManager::EnemyDeath(Enemy& e)
+{
+    e.pendingRemoval = true;
+    _enemiesToRemove.push_back(&e);
+}
 
 void GameplayManager::onKeyDown(ax::EventKeyboard::KeyCode code)
 {
