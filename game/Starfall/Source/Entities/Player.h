@@ -10,6 +10,8 @@ public:
     bool init();
     void update(float dt);
 
+    const float getRadius() const;
+
     /// <summary>
     /// reads input keys held and gets a direction vector
     /// </summary>
@@ -33,6 +35,8 @@ public:
     /// </summary>
     void firedMainWeapon();
 
+    void PlayerDied();
+
     void onKeyDown(ax::EventKeyboard::KeyCode code);
     void onKeyUp(ax::EventKeyboard::KeyCode code);
 
@@ -52,6 +56,8 @@ private:
     /// </summary>
     std::unordered_set<ax::EventKeyboard::KeyCode> _held;
 
+    ax::Vec2 _position      = {0.0f, 0.0f};
+    float _radius      = 0.0f;
     ax::Vec2 _velocity = { 0.0f, 0.0f};
 
     /// <summary>

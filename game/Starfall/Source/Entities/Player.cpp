@@ -21,6 +21,7 @@ constexpr float kFriction = 1800.0f;
 /// px/sec
 /// </summary>
 constexpr float kPlayerFireInterval = 0.45f;
+constexpr float kPlayerRadius       = 32.0f;
 }
 
 Player* Player::create()
@@ -43,12 +44,20 @@ bool Player::init()
         return false;
     }
 
+    _radius = kPlayerRadius;
+
     _sprite = Sprite::create("Sprites/ship.png");
     AXASSERT(_sprite, "ship.png missing from Content/");
 
     this->addChild(_sprite);
     this->scheduleUpdate();
     return true;
+}
+
+
+const float Player::getRadius() const
+{
+    return _radius;
 }
 
 void Player::update(float dt)
@@ -67,7 +76,7 @@ void Player::update(float dt)
 
     if (!input.isZero())
     {
-        _velocity = input * kAccel * dt;  // velocity = speed *direction, veloctiy * deltatime
+        _velocity += input * kAccel * dt;  // velocity = speed *direction, veloctiy * deltatime
     }
     else
     {
@@ -75,7 +84,7 @@ void Player::update(float dt)
         if (speed > 0)
         {
             const float drop = kFriction * dt;
-            _velocity        = _velocity * std::max(0.0f, speed - drop);
+            _velocity        = _velocity * (std::max(0.0f, speed - drop) / speed);
         }
     }
 
@@ -87,6 +96,7 @@ void Player::update(float dt)
 
     Vec2 pos = getPosition() + _velocity * dt;
 
+    clampToScreen(pos);
     setPosition(pos);
 }
 
@@ -99,6 +109,11 @@ bool Player::canFire()
 void Player::firedMainWeapon()
 {
     _mainWeaponCoolDown = kPlayerFireInterval;
+}
+
+void Player::PlayerDied()
+{
+    _state = ShipState::Dead;
 }
 
 ax::Vec2 Player::readInputDirection() const

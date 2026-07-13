@@ -28,6 +28,10 @@ public:
     std::size_t liveCount() const { return _live; }
     std::size_t capacity() const { return _slots.size(); }
 
+    //we disable these so that pool can never be passed by value
+    Pool(const Pool&)            = delete;
+    Pool& operator=(const Pool&) = delete;
+
 private:
     /// <summary>
     /// storage - allocated once, never grows
@@ -53,14 +57,15 @@ template <class T>
 Pool<T>::Pool(std::size_t capacity) : _slots(capacity), _active(capacity, false)
 {
     _free.reserve(capacity);
-    for (std::size_t i = capacity; i-- > 0;)
+
+    for (std::size_t i = capacity; i-- > 0;) // fill high→low so acquire() hands out 0, 1, 2…
         _free.push_back(i);
 }
 
 template<class T>
 T* Pool<T>::acquire()
 {
-    if (_free.empty()) //retrun null we have none
+    if (_free.empty()) //free-list empty == pool exhausted; caller must handle null.
     {
         return nullptr;
     }
