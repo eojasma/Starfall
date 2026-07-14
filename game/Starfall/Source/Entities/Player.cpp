@@ -30,17 +30,6 @@ constexpr int kMaxPlayerHealth = 10.0f;
 constexpr float kIFrameWindow = 0.50f;
 }
 
-//Player* Player::create()
-//{
-//    Player* p = new (std::nothrow) Player();
-//    if (p && p->init())
-//    {
-//        return p;
-//    }
-//
-//    AX_SAFE_DELETE(p);
-//    return nullptr;
-//}
 
 Player::Player()
 {
@@ -72,22 +61,8 @@ void Player::reset()
 
 bool Player::init()
 {
-    /*if (!Node::init())
-    {
-        return false;
-    }
-
-    
-    _sprite = Sprite::create("Sprites/ship.png");
-    AXASSERT(_sprite, "ship.png missing from Content/");
-
-    this->addChild(_sprite);
-    this->scheduleUpdate();*/
-
     render->node =  PlayerSprite::create();
-    render->node->init();
-
-
+    
     return true;
 }
 
@@ -134,6 +109,11 @@ void Player::update(float dt)
         if (0 >= _vulnStateCoolDown)
         {
             _vulnState = VulnState::Open;
+            //sometimes the actions arent done playing at this point and the player is invis, reset when we become vulnerable again
+            render->node->stopAllActions();
+            render->node->setOpacity(255);
+            render->node->setScale(1.0f);
+            render->node->setVisible(true);
         }
     }
 
@@ -198,8 +178,13 @@ void Player::applyDamage(Player& entity, int damage, GameplayManager& game)
 
         _vulnState         = VulnState::Invuln;
         _vulnStateCoolDown = kIFrameWindow;
+
+        auto blink = Blink::create(kIFrameWindow, 8);  // 8 flashes over the window
+        render->node->runAction(blink);                // while _vulnState == Invuln
     }
 }
+
+
 
 [[nodiscard]]
 bool Player::isDead() const

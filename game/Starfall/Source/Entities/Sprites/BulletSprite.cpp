@@ -26,7 +26,7 @@ bool BulletSprite::init()
     AXASSERT(_sprite, "bullet.png missing from Content/");
 
     this->addChild(_sprite);
-    this->scheduleUpdate();
+    //this->scheduleUpdate();
     return true;
 }
 

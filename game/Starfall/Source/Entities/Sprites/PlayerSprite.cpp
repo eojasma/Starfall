@@ -26,6 +26,6 @@ bool PlayerSprite::init()
     AXASSERT(_sprite, "ship.png missing from Content/");
 
     this->addChild(_sprite);
-    this->scheduleUpdate();
+    //this->scheduleUpdate();
     return true;
 }

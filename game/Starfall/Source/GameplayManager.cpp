@@ -12,13 +12,14 @@ namespace
 {
 static constexpr int kMaxBullets            = 10;
 static constexpr float kBulletVelocity      = 85.0f;
-static constexpr float kBulletRadius        = 15.0f;
+static constexpr float kBulletRadius        = 15.0f; //bullets collision circle
 
-static constexpr int kMaxEnemies            = 10;
-static constexpr float kEnemySpawnOffset    = 120.0f;
-static constexpr float kEnemySpawnTime      = 5.0f;
+static constexpr int kMaxEnemies            = 100;
+static constexpr float kEnemySpawnOffset    = 120.0f; //offest off screen to spawn the enemy, this allows us to spawn with out them popping in
+static constexpr float kEnemySpawnTime      = 2.0f;
 static constexpr float kEnemySpeed          = 50.0f;
-static constexpr float kEnemyRadius         = 32.0f;
+static constexpr float kEnemyRadius         = 32.0f; // enemy collision cirlce
+static constexpr float kPad                 = 64.f;  // ~one bullet-sprite beyond the edge
 
 }
 
@@ -43,9 +44,13 @@ void GameplayManager::setPlayer(Player* playerSprite)
 }
 
 
-void GameplayManager::init(ax::Scene* scene, Vec2 visibleSize)
+void GameplayManager::init(ax::Node* worldNode, ax::Node* hudNode, Vec2 visibleSize)
 {
-    _scene = scene;
+    _worldNode = worldNode;
+    _hudNode   = hudNode;
+
+    _worldHome = worldNode->getPosition();
+
     _player->setPosition(visibleSize / 2.0f);
 
     //reserve space on init to avoid a memory alloc/ resize mid update
@@ -60,7 +65,7 @@ void GameplayManager::pause()
 
 void GameplayManager::update(const float dt)
 {
-    auto* director       = Director::getInstance();
+    auto* director        = Director::getInstance();
     const ax::Vec2 vis    = director->getVisibleSize();
     const ax::Vec2 origin = director->getVisibleOrigin();
 
@@ -75,7 +80,6 @@ void GameplayManager::update(const float dt)
 
     _player->update(dt);
 
-    constexpr float kPad = 64.f;  // ~one bullet-sprite beyond the edge
     const ax::Rect  bounds(origin.x - kPad, origin.y - kPad, vis.width + kPad * 2, vis.height + kPad * 2);
 
     _bullets.forEachActive([this, &bounds, dt](Bullet& b, std::size_t) {
@@ -86,7 +90,9 @@ void GameplayManager::update(const float dt)
 
      spawnEnemy(bounds);
 
-    _enemies.forEachActive([this, &bounds, dt](Enemy& b, std::size_t) { this->enemyUpdate(b, bounds, dt); });
+    _enemies.forEachActive([this, &bounds, dt](Enemy& b, std::size_t) { this->enemyUpdate(b, dt); });
+
+    updateShake(dt);
 
     //always wait till the end of the update frame to clear remove / release entities. that way we dont change the list during itteration
     for (auto* toRemove : _bulletsToRemove)
@@ -125,9 +131,12 @@ T* GameplayManager::spawnSprite(Pool<T>& pool, const ax::Vec2 pos) //very import
         if (!entity->render->node)  // first use of this slot; reused slots keep their sprite.
         {
             entity->render->node = T::createSprite();  // per-type factory
-            _scene->addChild(entity->render->node);
+            _worldNode->addChild(entity->render->node);
         }
 
+        entity->render->node->stopAllActions();  // kill any lingering death anim and reset visibility
+        entity->render->node->setOpacity(255);
+        entity->render->node->setScale(1.0f);
         entity->render->node->setVisible(true);
         
         entity->transform->pos.x = pos.x;
@@ -253,7 +262,32 @@ void GameplayManager::bulletUpdate(Bullet& bullet, const ax::Rect& bounds, const
 
             if (enemy->health->isDead())
             {
-                EnemyDeath(*enemy);
+                //TODO move all of this to a self contained function
+                enemy->pendingRemoval = true;
+
+                auto pop      = ScaleTo::create(0.15f, 1.4f);
+                auto fade     = FadeOut::create(0.15f);
+                auto puff     = Spawn::create(pop, fade, nullptr);  // both together
+                
+                const Handle h = _enemies.handleOf(enemy);
+                auto done      = CallFunc::create([this, h] {
+                    if (Enemy* e = _enemies.resolve(h))  // nullptr if the slot was reused/freed
+                        EnemyDeath(*e);                  // only touch it if it's still the same enemy
+                });
+
+                enemy->render->node->runAction(Sequence::create(puff, done, nullptr));
+
+                //TODO move these to a pool
+                auto boom = ParticleExplosion::create();
+                boom->setPosition(enemy->transform->pos);
+                boom->setAutoRemoveOnFinish(true);  // frees itself when the last particle dies
+                _worldNode->addChild(boom);
+                
+            }
+            else
+            {
+                auto blink = Blink::create(0.25f, 8);  // 8 flashes over the window
+                enemy->render->node->runAction(blink);   // while _vulnState == Invuln
             }
             return;
         }
@@ -274,8 +308,6 @@ void GameplayManager::firePlayerMainWeapon()
         }
     }
 }
-
-
 
 bool GameplayManager::isTimeToSpawnEnemy() const
 {
@@ -331,7 +363,7 @@ void GameplayManager::spawnEnemy(const ax::Rect& bounds)
 
 }
 
-void GameplayManager::enemyUpdate(Enemy& enemy, const ax::Rect& bounds,  const float dt)
+void GameplayManager::enemyUpdate(Enemy& enemy,  const float dt)
 {
     if (enemy.pendingRemoval) //dont update corpses, TODO: when we have death anims this will prolly change
     {
@@ -348,8 +380,15 @@ void GameplayManager::enemyUpdate(Enemy& enemy, const ax::Rect& bounds,  const f
         //player hit
         _player->applyDamage(*_player, 1, *this);
 
+        addTrauma(0.05f);
+
         if (_player->isDead())
         {
+            auto boom = ParticleExplosion::create();
+            boom->setPosition(_player->getPosition());
+            boom->setAutoRemoveOnFinish(true);  // frees itself when the last particle dies
+            _worldNode->addChild(boom);
+
             _player->PlayerDied();
         }
 
@@ -361,7 +400,8 @@ void GameplayManager::enemyUpdate(Enemy& enemy, const ax::Rect& bounds,  const f
 
 void GameplayManager::EnemyDeath(Enemy& e)
 {
-    e.pendingRemoval = true;
+    e.render->node->stopAllActions();
+
     _enemiesToRemove.push_back(&e);
 }
 
@@ -380,4 +420,31 @@ void GameplayManager::onKeyDown(ax::EventKeyboard::KeyCode code)
 void  GameplayManager::onKeyUp(ax::EventKeyboard::KeyCode code)
 {
     _player->onKeyUp(code);
+}
+
+
+void GameplayManager::addTrauma(float t)
+{
+    _trauma = std::min(1.0f, _trauma + t);
+}
+
+void GameplayManager::updateShake(float dt)
+{
+    if (_trauma <= 0.f)
+    {
+        _worldNode->setPosition(_worldHome);
+        return;
+    }
+
+    const float r = _random.NextFloat(-1.f, 1.f);  // one source of randomness
+    const float r2 = _random.NextFloat(-1.f, 1.f);  // one source of randomness
+    const float r3 = _random.NextFloat(-1.f, 1.f);  // one source of randomness
+
+    const float shake = _trauma * _trauma;                        // square → punchy, tapers soft
+    const float ang   = (r * 2.f - 1.f) * 12.f * shake;  // degrees
+    const Vec2 off{(r2 * 2.f - 1.f) * 20.f * shake, (r3 * 2.f - 1.f) * 20.f * shake};
+
+    _worldNode->setPosition(_worldHome + off);
+    _worldNode->setRotation(ang);
+    _trauma = std::max(0.f, _trauma - dt * 1.5f);  // decay per second
 }

@@ -5,7 +5,7 @@ USING_NS_AX; //pulls axmol ax namespace
 namespace
 {
 static constexpr float kFixedStepTime = 1.0f / 120.0f;
-
+static constexpr float kMaxFrame       = 0.25f;  // never simulate more than 0.25s of catch-up
 }
 
 GameScene* GameScene::create()
@@ -33,22 +33,33 @@ bool GameScene::init()
     const auto visibleSize = director->getVisibleSize();
     const Vec2 origin      = director->getVisibleOrigin();
 
+    _world = Node::create();
+    _hud   = Node::create();
+
+    this->addChild(_world);
+    this->addChild(_hud);
+
     _dtLabel = Label::createWithSystemFont("dt: --", "Arial", 24);
-    _dtLabel->setPosition(origin.x + visibleSize.width / 2, origin.y + visibleSize.height / 2);
+    _dtLabel->setPosition(origin.x + visibleSize.width / 2, origin.y);
 
-    this->addChild(_dtLabel);
+    _hud->addChild(_dtLabel);
 
-    _gameplayMgr = new GameplayManager();
-
-    _player = new Player();
+        
+    _gpMgr = std ::make_unique<GameplayManager>();
+    _plyr = std ::make_unique<Player>();
     
+
+    _gameplayMgr = _gpMgr.get();
+    _player = _plyr.get();
+
+
     _player->init();
 
-    this->addChild(_player->getRenderNode());
+    _world->addChild(_player->getRenderNode());
 
     _gameplayMgr->setPlayer(_player);
 
-    _gameplayMgr->init(this, visibleSize);
+    _gameplayMgr->init(_world, _hud, visibleSize);
     
     auto keys           = EventListenerKeyboard::create();
     keys->onKeyPressed  = [this](EventKeyboard::KeyCode code, Event*) { _gameplayMgr->onKeyDown(code); };
@@ -61,10 +72,16 @@ bool GameScene::init()
     return true;
 }
 
+void GameScene::fixedUpdate(float dt) 
+{
+    _gameplayMgr->update(dt);
+}
+
 void GameScene :: update(float dt)
 {
     _elapsed += dt;
-    _accumulatedTime += dt;
+    //_accumulatedTime += dt;
+    _accumulatedTime += std::min(kMaxFrame, dt);
 
     _dtLabel->setString(StringUtils::format("dt: %.4f s | elapsed %.1f s",
                                              dt, _elapsed));
@@ -72,8 +89,6 @@ void GameScene :: update(float dt)
     while (_accumulatedTime > kFixedStepTime)
     {
         fixedUpdate(static_cast<float>(kFixedStepTime));
-
-        _gameplayMgr->update(kFixedStepTime);
 
         _accumulatedTime -= kFixedStepTime;
     }
@@ -86,3 +101,8 @@ void GameScene :: update(float dt)
 void GameScene::renderInterpolated(double alpha) {}  // stub; real lerp is the stretch goal
 
 
+
+GameScene::~GameScene()
+{
+   
+}

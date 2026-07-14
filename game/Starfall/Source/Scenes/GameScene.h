@@ -24,8 +24,11 @@ public:
     /// </summary>
     /// <param name="dt">delta time: seconds since last frame</param>
     void update(float dt) override;
+    void fixedUpdate(float dt) override;
 
     void renderInterpolated(double alpha);
+
+     ~GameScene();
 
     private:
 
@@ -37,8 +40,15 @@ public:
         /// </summary>
         ax :: Label* _dtLabel = nullptr;
 
-        GameplayManager* _gameplayMgr = nullptr;
+        //private hold for these, to auto release
+        std::unique_ptr<GameplayManager> _gpMgr;
+        std::unique_ptr<Player> _plyr;
 
-        Player* _player = nullptr;
+        // these are the ones we pass to other classes for use
+        GameplayManager* _gameplayMgr = nullptr;
+        Player* _player               = nullptr;
+
+        ax::Node* _world = nullptr;
+        ax::Node* _hud   = nullptr;
 
 };

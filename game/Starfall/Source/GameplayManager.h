@@ -23,7 +23,7 @@ public:
     /// </summary>
     /// <param name="scene">Gameplay scene</param>
     /// <param name="visibleSize">Visible size of the window</param>
-    void init(ax::Scene* scene, ax::Vec2 visibleSize);
+    void init(ax::Node* worldNode, ax::Node* hudNode, ax::Vec2 visibleSize);
 
     /// <summary>
     /// TODO: pauses the gameplay loop
@@ -50,18 +50,8 @@ public:
     /// </summary>
     void firePlayerMainWeapon();
 
-    /// <summary>
-    /// check if we can spawn an enemy now
-    /// </summary>
-    /// <returns></returns>
-    bool isTimeToSpawnEnemy() const;
-
-    /// <summary>
-    /// called when enemy has spawned, starts the cooldown
-    /// </summary>
-    void enemySpawned();
     void spawnEnemy(const ax::Rect& bounds);
-    void enemyUpdate(Enemy& e, const ax::Rect& bounds, const float dt);
+    void enemyUpdate(Enemy& e, const float dt);
 
     void onKeyDown(ax::EventKeyboard::KeyCode code);
     void onKeyUp(ax::EventKeyboard::KeyCode code);
@@ -71,7 +61,8 @@ public:
 
 
 private:
-    ax::Scene* _scene   = nullptr;
+    ax::Node* _worldNode = nullptr;
+    ax::Node* _hudNode   = nullptr;
     Player* _player = nullptr;
 
     /// <summary>
@@ -121,5 +112,19 @@ private:
         requires std::derived_from<T, Entity>
     T* spawnSprite(Pool<T>& pool, const ax::Vec2 pos);
 
-    
+     /// <summary>
+     /// called when enemy has spawned, starts the cooldown
+     /// </summary>
+     void enemySpawned();
+
+     /// <summary>
+     /// check if we can spawn an enemy now
+     /// </summary>
+     /// <returns></returns>
+     bool isTimeToSpawnEnemy() const;
+
+     ax::Vec2 _worldHome{0.0f, 0.0f};
+     float _trauma = 0.0f;
+     void addTrauma(float t);
+     void updateShake(float dt);
 };

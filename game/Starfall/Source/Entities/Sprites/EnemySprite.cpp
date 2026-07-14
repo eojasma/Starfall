@@ -22,10 +22,10 @@ bool EnemySprite::init()
         return false;
     }
 
-    _sprite = Sprite::create("Sprites/Enemy.png");
+    _sprite = Sprite::create("Sprites/enemy.png");
     AXASSERT(_sprite, "Enemy.png missing from Content/");
 
     this->addChild(_sprite);
-    this->scheduleUpdate();
+    //this->scheduleUpdate();
     return true;
 }

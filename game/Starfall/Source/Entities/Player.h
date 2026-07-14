@@ -7,8 +7,7 @@ class Player :public Entity
 {
 public:
     Player();
-    //static Player* create();
-
+    
     void reset() override;
 
     bool init();
